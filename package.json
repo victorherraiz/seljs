@@ -1,0 +1,16 @@
+{
+  "name": "seljs",
+  "version": "0.1.0",
+  "description": "Simple Expression Languaje for JavaScript",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/victorherraiz/seljs.git"
+  },
+  "scripts": {
+    "preversion": "npm test",
+    "test": "node test.js"
+  },
+  "author": "Víctor Herraiz Posada <victor.herraiz@gmail.com> (https://github.com/victorherraiz)",
+  "license": "MIT"
+}
