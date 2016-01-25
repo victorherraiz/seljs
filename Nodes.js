@@ -18,10 +18,16 @@ class Property extends Value {
     }
 }
 
+function getFromContext (ctx, prop) {
+    if (ctx === null || ctx === undefined) {
+        return null;
+    }
+    return ctx.hasOwnProperty(prop) ? ctx[prop] : null;
+}
+
 class Identifier extends Value {
     getValue (ctx) {
-        const value = ctx[this.value];
-        return value === undefined ? null : value;
+        return getFromContext(ctx, this.value);
     }
 }
 
@@ -58,9 +64,7 @@ class Division extends BinaryOperator {
 
 class Dot extends BinaryOperator {
     getValue (ctx) {
-        const value = this.left.getValue(ctx),
-            prop = value && value[this.right.getValue(ctx)];
-        return prop === undefined ? null : prop;
+        return  getFromContext(this.left.getValue(ctx), this.right.getValue(ctx));
     }
 }
 
