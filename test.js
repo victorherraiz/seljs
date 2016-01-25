@@ -58,11 +58,15 @@ assert.strictEqual(seljs.cache.size,  1);
 
 //Errors
 function wrapper(text, ctx) {
-    return () => seljs(text, ctx);
+    return function () {
+        return seljs(text, ctx);
+    };
 }
 
 function message(text) {
-    return (error) => error.message === text;
+    return function (error) {
+        return error.message === text;
+    };
 }
 
 //Empty
