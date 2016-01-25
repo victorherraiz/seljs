@@ -1,7 +1,6 @@
 # Simple Expression Language for JavaScript
 
 [![Build Status](https://travis-ci.org/victorherraiz/seljs.svg?branch=master)](https://travis-ci.org/victorherraiz/seljs)
-[![Coverage Status](https://coveralls.io/repos/github/victorherraiz/seljs/badge.svg?branch=master)](https://coveralls.io/github/victorherraiz/seljs?branch=master)
 
 ## Requirements:
 
