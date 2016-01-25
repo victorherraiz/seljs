@@ -1,6 +1,6 @@
 {
   "name": "seljs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Simple Expression Languaje for JavaScript",
   "main": "index.js",
   "repository": {
