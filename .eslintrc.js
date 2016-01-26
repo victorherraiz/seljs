@@ -3,7 +3,8 @@ module.exports = {
         "indent": [2, 4],
         "quotes": [2, "double"],
         "linebreak-style": [2, "unix"],
-        "semi": [2, "always"]
+        "semi": [2, "always"],
+        "no-use-before-define": 2
     },
     "env": {
         "es6": true,

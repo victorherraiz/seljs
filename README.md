@@ -19,22 +19,21 @@
 
 ## Language features
 
-Very limited at the moment.
-
-* Basic arithmetic: Adding, subtraction, Multiplication and Division
+* Arithmetic, relation, equality and boolean opeations
 * Context and property access
 * Literals: Strings and integers
 * String concatenation
+* Keywords: true, false and null
 
 ## Work in progress
 
-* Boolean operators: And, or, equals, not equals, negate.
+* Unary: not, minus
 * Grouping
-* null keyword
 * Functions
 * Global functions
-* Language documentation
-
+* Language and operators documentation
+* Floats
+* Array Literals
 
 ## Examples
 
@@ -54,16 +53,16 @@ const seljs = require("seljs"),
     };
 
 //Number literals
-assert.strictEqual(seljs("123", ctx), 123);
+assert.strictEqual(seljs("123"), 123);
 
 //String literals
-assert.strictEqual(seljs("'123'", ctx), "123");
+assert.strictEqual(seljs("'123'"), "123");
 
 //Basic arithmetic
-assert.strictEqual(seljs("1 + 3 * 2 / 4 - 1 * 2", ctx), 1 + 3 * 2 / 4 - 1 * 2);
+assert.strictEqual(seljs("1 + 3 * 2 / 4 - 1 * 2"), 1 + 3 * 2 / 4 - 1 * 2);
 
 //String concatenation
-assert.strictEqual(seljs("'123' + '123'", ctx), "123123");
+assert.strictEqual(seljs("'123' + '123'"), "123123");
 
 //Context and property access
 assert.strictEqual(seljs("int + obj.int + obj.obj.deep", ctx), 123 + 321 + 333);

@@ -4,17 +4,18 @@ const seljs = require("."),
     assert = require("assert"),
     ctx = { int: 123, str: "123", obj: { int: 321, str: "321", obj: { deep: 333 } } };
 
-
 //Simple values
-assert.strictEqual(seljs("123", ctx), 123);
-assert.strictEqual(seljs(" 123", ctx), 123);
-assert.strictEqual(seljs(" 123 ", ctx), 123);
-assert.strictEqual(seljs("123 ", ctx), 123);
+assert.strictEqual(seljs("0", ctx), 0);
 
-assert.strictEqual(seljs("'123'", ctx), "123");
-assert.strictEqual(seljs(" '123'", ctx), "123");
-assert.strictEqual(seljs(" '123' ", ctx), "123");
-assert.strictEqual(seljs("'123' ", ctx), "123");
+assert.strictEqual(seljs("123"), 123);
+assert.strictEqual(seljs(" 123"), 123);
+assert.strictEqual(seljs(" 123 "), 123);
+assert.strictEqual(seljs("123 "), 123);
+
+assert.strictEqual(seljs("'123'"), "123");
+assert.strictEqual(seljs(" '123'"), "123");
+assert.strictEqual(seljs(" '123' "), "123");
+assert.strictEqual(seljs("'123' "), "123");
 
 assert.strictEqual(seljs("int", ctx), 123);
 assert.strictEqual(seljs(" int", ctx), 123);
@@ -22,14 +23,57 @@ assert.strictEqual(seljs(" int ", ctx), 123);
 assert.strictEqual(seljs("int ", ctx), 123);
 
 //Some arithmetic
-assert.strictEqual(seljs(" 1 + 3 * 2 / 4  - 1 * 2 ", ctx), 1 + 3 * 2 / 4 - 1 * 2);
-assert.strictEqual(seljs("1+3*2/4-1*2", ctx), 1 + 3 * 2 / 4 - 1 * 2);
-assert.strictEqual(seljs("2/3-1+3*2/4", ctx), 2 / 3 - 1 + 3 * 2 / 4);
+assert.strictEqual(seljs(" 1 + 3 * 2 / 4  - 1 * 2 "), 1 + 3 * 2 / 4 - 1 * 2);
+assert.strictEqual(seljs("1+3*2/4-1*2"), 1 + 3 * 2 / 4 - 1 * 2);
+assert.strictEqual(seljs("2/3-1+3*2/4"), 2 / 3 - 1 + 3 * 2 / 4);
 
 //String concatenation
-assert.strictEqual(seljs("'123' + '123'", ctx), "123123");
-assert.strictEqual(seljs("123 + '123'", ctx), "123123");
-assert.strictEqual(seljs("'123' + 123", ctx), "123123");
+assert.strictEqual(seljs("'123' + '123'"), "123123");
+assert.strictEqual(seljs("123 + '123'"), "123123");
+assert.strictEqual(seljs("'123' + 123"), "123123");
+
+//Known
+assert.strictEqual(seljs("true"), true);
+assert.strictEqual(seljs("false"), false);
+assert.strictEqual(seljs("null"), null);
+
+//Relational
+assert.strictEqual(seljs("0 > 1"), false);
+assert.strictEqual(seljs("1 > 1"), false);
+assert.strictEqual(seljs("2 > 1"), true);
+assert.strictEqual(seljs("0 < 1"), true);
+assert.strictEqual(seljs("1 < 1"), false);
+assert.strictEqual(seljs("2 < 1"), false);
+assert.strictEqual(seljs("0 >= 1"), false);
+assert.strictEqual(seljs("1 >= 1"), true);
+assert.strictEqual(seljs("2 >= 1"), true);
+assert.strictEqual(seljs("0 <= 1"), true);
+assert.strictEqual(seljs("1 <= 1"), true);
+assert.strictEqual(seljs("2 <= 1"), false);
+
+//Equality
+assert.strictEqual(seljs("0 == 1"), false);
+assert.strictEqual(seljs("1 == 1"), true);
+assert.strictEqual(seljs("0 != 1"), true);
+assert.strictEqual(seljs("1 != 1"), false);
+
+//And and Or
+assert.strictEqual(seljs("true && false"), true && false);
+assert.strictEqual(seljs("true && true"), true && true);
+assert.strictEqual(seljs("false && false"), false && false);
+assert.strictEqual(seljs("false && true"), false && true);
+assert.strictEqual(seljs("true || false"), true || false);
+assert.strictEqual(seljs("true || true"), true || true);
+assert.strictEqual(seljs("false || false"), false || false);
+assert.strictEqual(seljs("false || true"), false || true);
+
+//Precedence
+assert.strictEqual(4 * 4 > 6 && 3 - 2 == 1, true);
+assert.strictEqual(seljs("4 * 4 > 6 && 3 - 2 == 1"), true);
+assert.strictEqual(true && false || 1, 1);
+assert.strictEqual(seljs("true && false || 1"), 1);
+assert.strictEqual(false || true && false, false);
+assert.strictEqual(seljs("false || true && false"), false);
 
 //Identifiers and properties
 assert.strictEqual(seljs("int+obj.int+obj.obj.deep", ctx), 123 + 321 + 333);
@@ -47,13 +91,13 @@ assert.strictEqual(seljs("obj.obj.banana", ctx), null);
 
 //cache
 assert.strictEqual(seljs.cache.clear(),  undefined);
-assert.strictEqual(seljs("1", ctx), 1);
+assert.strictEqual(seljs("1"), 1);
 assert.strictEqual(seljs.cache.size,  1);
-assert.strictEqual(seljs("1", ctx), 1);
+assert.strictEqual(seljs("1"), 1);
 assert.strictEqual(seljs.cache.size,  1);
 assert.strictEqual(seljs.cache.clear(),  undefined);
 assert.strictEqual(seljs.cache.size,  0);
-assert.strictEqual(seljs("1", ctx), 1);
+assert.strictEqual(seljs("1"), 1);
 assert.strictEqual(seljs.cache.size,  1);
 
 //Errors
@@ -73,23 +117,33 @@ function message(text) {
 assert.throws(wrapper("", ctx), message("Empty expression"));
 
 //Broken string
-assert.throws(wrapper("'123", ctx), message("Open token"));
-assert.throws(wrapper("'", ctx), message("Open token"));
-assert.throws(wrapper("'123''", ctx), message("Unexpected character ''' at 5"));
-assert.throws(wrapper("'123' + ' ", ctx), message("Open token"));
+assert.throws(wrapper("'123"), message("Open token"));
+assert.throws(wrapper("'"), message("Open token"));
+assert.throws(wrapper("'123''"), message("Unexpected character ''' at 5"));
+assert.throws(wrapper("'123' + ' "), message("Open token"));
 
 //Invalid
 assert.throws(wrapper("123x", ctx), message("Unexpected character 'x' at 3"));
-assert.throws(wrapper("asd.123x", ctx), message("Unexpected character '1' at 4"));
+assert.throws(wrapper("asd.123x", ctx), message("Unexpected character '.' at 3"));
+assert.throws(wrapper("asd.1", ctx), message("Unexpected character '.' at 3"));
+
+//Zero
+assert.throws(wrapper("00"), message("Unexpected character '0' at 1"));
+assert.throws(wrapper("01"), message("Unexpected character '1' at 1"));
 
 //Dot
+assert.throws(wrapper("obj.", ctx), message("Unexpected character '.' at 3"));
 assert.throws(wrapper("obj. int", ctx), message("Unexpected character '.' at 3"));
 assert.throws(wrapper("obj .int", ctx), message("Unexpected character '.' at 4"));
 assert.throws(wrapper("obj. + int", ctx), message("Unexpected character '.' at 3"));
 
 //Operators
-assert.throws(wrapper("* 123 123", ctx), message("Unexpected character '*' at 0"));
-assert.throws(wrapper("123 123 +", ctx), message("Unexpected character '1' at 4"));
-assert.throws(wrapper("123 +123 +", ctx), message("Unexpected character '+' at 9"));
-assert.throws(wrapper("123 + / 123", ctx), message("Unexpected character '/' at 6"));
+assert.throws(wrapper("* 123 123"), message("Unexpected character '*' at 0"));
+assert.throws(wrapper("123 123 +"), message("Unexpected character '1' at 4"));
+assert.throws(wrapper("123 +123 +"), message("Unexpected character '+' at 9"));
+assert.throws(wrapper("123 + / 123"), message("Unexpected character '/' at 6"));
+
+//Unknowm operators
+assert.throws(wrapper("123 => 123"), message("Unknown operator '=' at 4"));
+assert.throws(wrapper("123 === 123"), message("Unknown operator '===' at 4"));
 

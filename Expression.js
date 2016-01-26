@@ -4,80 +4,86 @@ const Nodes = require("./Nodes"),
     INTERNAL_ERROR = "Internal error, posible bug.",
     VALUE = 1,
     OPERATOR = 2,
-    //TYPES
-    BINARY_OPERATOR_RE = /^[+\-*/] *\S/,
-    BINARY_OPERATOR = {
-        kind: OPERATOR,
-        previous: (last) => last && last.kind === VALUE,
-        first: (str, index) => BINARY_OPERATOR_RE.test(str.substr(index)),
-        next: () => null
-    },
-    VALUE_BEFORE = (last) => !last || last === BINARY_OPERATOR,
-    STRING_END_TYPE = {
+    BEFORE_VALUE = (last) => !last || last.kind === OPERATOR,
+    STRING_END = {
         kind: VALUE,
         next: () => null,
         build: (str) => new Nodes.Literal(str.substring(1, str.length - 1))
     },
-    STRING_TYPE = {
+    STRING = {
         kind: VALUE,
-        next: (char) => char === "'" ? STRING_END_TYPE : STRING_TYPE
+        next: (char) => char === "'" ? STRING_END : STRING
     },
-    STRING_START_TYPE = {
+    STRING_START = {
         kind: VALUE,
-        previous: VALUE_BEFORE,
-        first: (str, index) => str.charAt(index) === "'",
-        next: (char) => char === "'" ? STRING_END_TYPE : STRING_TYPE
+        first: (last, char) => BEFORE_VALUE(last) && char === "'",
+        next: (char) => char === "'" ? STRING_END : STRING
     },
-    INTEGER_TYPE = {
+    ZERO = {
         kind: VALUE,
-        previous: VALUE_BEFORE,
-        first: (str, index) => (/[1-9]/).test(str.charAt(index)),
-        next: (char) => (/[0-9]/).test(char) ? INTEGER_TYPE : null,
+        first: (last, char) => BEFORE_VALUE(last) && char === "0",
+        next: () => null,
         build: (str) => new Nodes.Literal(parseInt(str))
     },
-    ID_RE = /^[a-zA-Z_]$/,
-    ID_N_RE = /^[a-zA-Z0-9_]$/,
-    IDENTIFIER_TYPE = {
+    INTEGER = {
         kind: VALUE,
-        previous: VALUE_BEFORE,
-        first: (str, index) => ID_RE.test(str.charAt(index)),
-        next: (char) => ID_N_RE.test(char) ? IDENTIFIER_TYPE : null,
-        build: (str) => new Nodes.Identifier(str)
+        first: (last, char) => BEFORE_VALUE(last) && /[1-9]/.test(char),
+        next: (char) => (/[0-9]/).test(char) ? INTEGER : null,
+        build: (str) => new Nodes.Literal(parseInt(str))
     },
-    PROPERTY_RE = /^\.[a-zA-Z_]$/,
-    PROPERTY_TYPE = {
+    KNOWN = new Map([
+        ["true", new Nodes.Literal(true)],
+        ["false", new Nodes.Literal(false)],
+        ["null", new Nodes.Literal(null)]
+    ]),
+    IDENTIFIER = {
         kind: VALUE,
-        previous: () => true,
-        first: (str, index) => PROPERTY_RE.test(str.substr(index - 1, 2)),
-        next: (char) => ID_N_RE.test(char) ? PROPERTY_TYPE : null,
-        build: (str) => new Nodes.Property(str)
+        first: (last, char) => BEFORE_VALUE(last) && /^[a-zA-Z_]$/.test(char),
+        next: (char) => /^[a-zA-Z0-9_]$/.test(char) ? IDENTIFIER : null,
+        build: (str) => KNOWN.get(str) || new Nodes.Identifier(str)
     },
-    DOT_OPERATOR = {
+    DOT = {
         kind: OPERATOR,
-        previous: (last) => last && ~[IDENTIFIER_TYPE, PROPERTY_TYPE].indexOf(last),
-        first: (str, index) => (/\w\.\w/).test(str.substr(index - 1, 3)),
+        first: (last, char, str, index) => IDENTIFIER === last &&
+            (/^[a-zA-Z0-9_]\.[a-zA-Z_]$/).test(str.substr(index - 1, 3)),
         next: () => null
     },
-    Types = Object.freeze({
-        STRING_START_TYPE,
-        INTEGER_TYPE,
-        PROPERTY_TYPE,
-        IDENTIFIER_TYPE,
-        DOT_OPERATOR,
-        BINARY_OPERATOR
-    }),
-    TYPE_KEYS = Object.keys(Types),
+    BINARY = {
+        kind: OPERATOR,
+        first: (last, char, str, index) => last && last.kind === VALUE
+            && /^[+\-*/&|<>=!] *\S/.test(str.substring(index)),
+        next: (char) => /^[=&|]$/.test(char) ? BINARY : null
+    },
+    TYPES = [STRING_START, ZERO, INTEGER, IDENTIFIER, DOT, BINARY],
+    MULTIPLICATIVE = 8,
+    ADDITIVE = MULTIPLICATIVE - 1,
+    RELATIONAL = ADDITIVE  - 1,
+    EQUALITY = RELATIONAL - 1,
+    AND = EQUALITY - 1,
+    OR = AND - 1,
     OPERATORS = new Map([
-        ["+", [2, Nodes.Addition]],
-        ["-", [2, Nodes.Subtraction]],
-        ["*", [3, Nodes.Multiplication]],
-        ["/", [3, Nodes.Division]],
+        ["+", [ADDITIVE, Nodes.Addition]],
+        ["-", [ADDITIVE, Nodes.Subtraction]],
+        ["*", [MULTIPLICATIVE, Nodes.Multiplication]],
+        ["/", [MULTIPLICATIVE, Nodes.Division]],
+        [">", [RELATIONAL, Nodes.Greater]],
+        [">=", [RELATIONAL, Nodes.GreaterEquals]],
+        ["<", [RELATIONAL, Nodes.Less]],
+        ["<=", [RELATIONAL, Nodes.LessEquals]],
+        ["==", [EQUALITY, Nodes.Equals]],
+        ["!=", [EQUALITY, Nodes.NotEquals]],
+        ["&&", [AND, Nodes.And]],
+        ["||", [OR, Nodes.Or]],
         [".", [9, Nodes.Dot]]
     ]);
 
 class OperatorBuilder {
-    constructor (text) {
-        const operator = OPERATORS.get(text);
+    constructor (str, offset, index) {
+        const op = str.substring(offset, index),
+            operator = OPERATORS.get(str.substring(offset, index));
+        if (!operator) {
+            throw new Error ("Unknown operator '" + op + "' at " + offset);
+        }
         this.precedence = operator[0];
         this.Class = operator[1];
     }
@@ -87,45 +93,36 @@ class OperatorBuilder {
     }
 }
 
-function findType (str, index) {
-    for (const key of TYPE_KEYS) {
-        if (Types[key].first(str, index)) {
-            return Types[key];
-        }
-    }
-    return null;
-}
-
 function processOperators (ops, vals, precedence) {
     while (ops.length && ops[ops.length - 1].precedence >= precedence) {
         vals.push(ops.pop().build(vals));
     }
 }
 
-function parse (str) {
-    const STR = str + " ", LENGTH = STR.length, values = [], operators = [];
+function parse (text) {
+    const str = text + " ", LENGTH = str.length, values = [], operators = [];
     let offset = 0, index = 0, type = null, last = null;
     while (index < LENGTH) {
+        const char = str.charAt(index);
         if (type === null) {
-            const char = STR.charAt(index);
             if (char === " ") {
                 offset += 1;
             } else {
-                type = findType(str, index, last);
-                if (!type || !type.previous(last)) {
+                type = TYPES.find((type) => type.first(last, char, str, index));
+                if (!type) {
                     throw new Error("Unexpected character '" + char + "' at " + index);
                 }
             }
             index += 1;
         } else {
-            const newType = type.next(STR.charAt(index));
+            const newType = type.next(char);
             if (newType) {
                 index += 1;
             } else {
                 if (type.kind === VALUE) {
-                    values.push(type.build((STR.substring(offset, index))));
+                    values.push(type.build(str.substring(offset, index)));
                 } else if (type.kind === OPERATOR) {
-                    const operator = new OperatorBuilder(STR.substring(offset, index));
+                    const operator = new OperatorBuilder(str, offset, index);
                     processOperators(operators, values, operator.precedence);
                     operators.push(operator);
                 } else {
@@ -151,7 +148,6 @@ function parse (str) {
     if (values.length > 1) {
         throw new Error(INTERNAL_ERROR);
     }
-
     return values[0];
 }
 
