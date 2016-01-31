@@ -13,7 +13,7 @@ const Nodes = require("./Nodes"),
         build: (str) => new Nodes.Literal(str.slice(1, -1))
     },
     STRING = {
-        next: (char) => char === "'" ? STRING_END : char && STRING || null
+        next: (char) => char === "'" ? STRING_END : STRING
     },
     STRING_START = {
         first: (last, char) => BEFORE_VALUE(last) && char === "'",
@@ -70,7 +70,7 @@ const Nodes = require("./Nodes"),
     OR = AND - 1,
     GROUP = OR - 1,
     END = GROUP - 1,
-    MARK = END - 1,
+    GROUP_MARK = END - 1,
 
     OPERATORS = new Map([
         [".", [DOTS, Nodes.Dot]],
@@ -100,37 +100,33 @@ function processOperators (operators, values, precedence) {
  */
 function parse (text) {
     const str = text, LENGTH = str.length, values = [], operators = [];
-    let offset = 0, index = 0, type = null, last = null;
-    while (index < LENGTH) {
+    for (let offset = 0, index = 0, type = null; offset < LENGTH; offset = ++index) {
         const char = str.charAt(index);
-        if(char === " ") {
-            offset = index += 1;
-            continue;
-        }
-        type = TYPES.find((item) => item.first(last, char, str, index));
+        if(char === " ") continue;
+        type = TYPES.find((item) => item.first(type, char, str, index));
         if (!type) throw new Error("Unexpected character " + char + " at " + index);
-        while (type) {
-            last = type;
-            index += 1;
-            type = type.next && type.next(str.charAt(index));
+        for (let i = index + 1, next = type.next && type.next(str.charAt(i));
+            next && i < LENGTH;
+            next = type.next && type.next(str.charAt(++i))) {
+            type = next;
+            index = i;
         }
-        if (last.build) {
-            values.push(last.build(str.slice(offset, index)));
-        } else if (last === GROUP_START) {
-            operators.push([MARK]);
-        } else if (last === GROUP_END) {
+        if (type.build) {
+            values.push(type.build(str.slice(offset, index + 1)));
+        } else if (type === GROUP_START) {
+            operators.push([GROUP_MARK]);
+        } else if (type === GROUP_END) {
             processOperators(operators, values, GROUP);
             if (!operators.length) throw new Error("Missing left parenthesis");
             operators.pop();
-        } else if (last.kind === OPERATOR) {
-            const text = str.slice(offset, index), operator = OPERATORS.get(text);
+        } else if (type.kind === OPERATOR) {
+            const text = str.slice(offset, index + 1), operator = OPERATORS.get(text);
             if (!operator) throw new Error ("Unknown operator " + text + " at " + offset);
             processOperators(operators, values, operator[0]);
             operators.push(operator);
         } else {
             throw new Error("Open token");
         }
-        offset = index;
     }
     processOperators(operators, values, END);
     if (operators.length) throw new Error("Missing right parenthesis");
