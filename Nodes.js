@@ -1,3 +1,7 @@
+/**
+ * @module seljs/Nodes
+ */
+
 "use strict";
 
 class Value {

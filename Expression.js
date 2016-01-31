@@ -1,28 +1,35 @@
+/**
+ * @module seljs/Expression
+ */
+
 "use strict";
 
 const Nodes = require("./Nodes"),
-    INTERNAL_ERROR = "Internal error, posible bug.",
     VALUE = 1,
     OPERATOR = 2,
     BEFORE_VALUE = (last) => !last || last.kind === OPERATOR,
     STRING_END = {
         kind: VALUE,
-        next: () => null,
-        build: (str) => new Nodes.Literal(str.substring(1, str.length - 1))
+        build: (str) => new Nodes.Literal(str.slice(1, -1))
     },
     STRING = {
-        kind: VALUE,
-        next: (char) => char === "'" ? STRING_END : STRING
+        next: (char) => char === "'" ? STRING_END : char && STRING || null
     },
     STRING_START = {
-        kind: VALUE,
         first: (last, char) => BEFORE_VALUE(last) && char === "'",
         next: (char) => char === "'" ? STRING_END : STRING
+    },
+    GROUP_END = {
+        kind: VALUE,
+        first: (last, char) => last && last.kind === VALUE && char === ")"
+    },
+    GROUP_START = {
+        kind: OPERATOR,
+        first: (last, char) => BEFORE_VALUE(last) && char === "("
     },
     ZERO = {
         kind: VALUE,
         first: (last, char) => BEFORE_VALUE(last) && char === "0",
-        next: () => null,
         build: (str) => new Nodes.Literal(parseInt(str))
     },
     INTEGER = {
@@ -45,8 +52,7 @@ const Nodes = require("./Nodes"),
     DOT = {
         kind: OPERATOR,
         first: (last, char, str, index) => IDENTIFIER === last &&
-            (/^[a-zA-Z0-9_]\.[a-zA-Z_]$/).test(str.substr(index - 1, 3)),
-        next: () => null
+            (/^[a-zA-Z0-9_]\.[a-zA-Z_]$/).test(str.substr(index - 1, 3))
     },
     BINARY = {
         kind: OPERATOR,
@@ -54,18 +60,24 @@ const Nodes = require("./Nodes"),
             && /^[+\-*/&|<>=!] *\S/.test(str.substring(index)),
         next: (char) => /^[=&|]$/.test(char) ? BINARY : null
     },
-    TYPES = [STRING_START, ZERO, INTEGER, IDENTIFIER, DOT, BINARY],
-    MULTIPLICATIVE = 8,
+    TYPES = [STRING_START, ZERO, INTEGER, IDENTIFIER, DOT, BINARY, GROUP_START, GROUP_END],
+    DOTS = 10,
+    MULTIPLICATIVE = DOTS - 1,
     ADDITIVE = MULTIPLICATIVE - 1,
     RELATIONAL = ADDITIVE  - 1,
     EQUALITY = RELATIONAL - 1,
     AND = EQUALITY - 1,
     OR = AND - 1,
+    GROUP = OR - 1,
+    END = GROUP - 1,
+    MARK = END - 1,
+
     OPERATORS = new Map([
-        ["+", [ADDITIVE, Nodes.Addition]],
-        ["-", [ADDITIVE, Nodes.Subtraction]],
+        [".", [DOTS, Nodes.Dot]],
         ["*", [MULTIPLICATIVE, Nodes.Multiplication]],
         ["/", [MULTIPLICATIVE, Nodes.Division]],
+        ["+", [ADDITIVE, Nodes.Addition]],
+        ["-", [ADDITIVE, Nodes.Subtraction]],
         [">", [RELATIONAL, Nodes.Greater]],
         [">=", [RELATIONAL, Nodes.GreaterEquals]],
         ["<", [RELATIONAL, Nodes.Less]],
@@ -73,81 +85,57 @@ const Nodes = require("./Nodes"),
         ["==", [EQUALITY, Nodes.Equals]],
         ["!=", [EQUALITY, Nodes.NotEquals]],
         ["&&", [AND, Nodes.And]],
-        ["||", [OR, Nodes.Or]],
-        [".", [9, Nodes.Dot]]
+        ["||", [OR, Nodes.Or]]
     ]);
 
-class OperatorBuilder {
-    constructor (str, offset, index) {
-        const op = str.substring(offset, index),
-            operator = OPERATORS.get(str.substring(offset, index));
-        if (!operator) {
-            throw new Error ("Unknown operator '" + op + "' at " + offset);
-        }
-        this.precedence = operator[0];
-        this.Class = operator[1];
-    }
-    build (values) {
+function processOperators (operators, values, precedence) {
+    while (operators.length && operators[operators.length - 1][0] >= precedence) {
         const items = values.splice(-2, 2);
-        return new this.Class(items[0], items[1]);
+        values.push(new (operators.pop()[1])(items[0], items[1]));
     }
 }
-
-function processOperators (ops, vals, precedence) {
-    while (ops.length && ops[ops.length - 1].precedence >= precedence) {
-        vals.push(ops.pop().build(vals));
-    }
-}
-
+/**
+ * It parses text and returns an AST reference.
+ * @param {string} text text to parse
+ */
 function parse (text) {
-    const str = text + " ", LENGTH = str.length, values = [], operators = [];
+    const str = text, LENGTH = str.length, values = [], operators = [];
     let offset = 0, index = 0, type = null, last = null;
     while (index < LENGTH) {
         const char = str.charAt(index);
-        if (type === null) {
-            if (char === " ") {
-                offset += 1;
-            } else {
-                type = TYPES.find((type) => type.first(last, char, str, index));
-                if (!type) {
-                    throw new Error("Unexpected character '" + char + "' at " + index);
-                }
-            }
-            index += 1;
-        } else {
-            const newType = type.next(char);
-            if (newType) {
-                index += 1;
-            } else {
-                if (type.kind === VALUE) {
-                    values.push(type.build(str.substring(offset, index)));
-                } else if (type.kind === OPERATOR) {
-                    const operator = new OperatorBuilder(str, offset, index);
-                    processOperators(operators, values, operator.precedence);
-                    operators.push(operator);
-                } else {
-                    throw new Error(INTERNAL_ERROR);
-                }
-                offset = index;
-                last = type;
-            }
-            type = newType;
+        if(char === " ") {
+            offset = index += 1;
+            continue;
         }
+        type = TYPES.find((item) => item.first(last, char, str, index));
+        if (!type) throw new Error("Unexpected character " + char + " at " + index);
+        while (type) {
+            last = type;
+            index += 1;
+            type = type.next && type.next(str.charAt(index));
+        }
+        if (last.build) {
+            values.push(last.build(str.slice(offset, index)));
+        } else if (last === GROUP_START) {
+            operators.push([MARK]);
+        } else if (last === GROUP_END) {
+            processOperators(operators, values, GROUP);
+            if (!operators.length) throw new Error("Missing left parenthesis");
+            operators.pop();
+        } else if (last.kind === OPERATOR) {
+            const text = str.slice(offset, index), operator = OPERATORS.get(text);
+            if (!operator) throw new Error ("Unknown operator " + text + " at " + offset);
+            processOperators(operators, values, operator[0]);
+            operators.push(operator);
+        } else {
+            throw new Error("Open token");
+        }
+        offset = index;
     }
-
-    if (type) {
-        throw new Error("Open token");
-    }
-
-    if (!last) {
-        throw new Error("Empty expression");
-    }
-
-    processOperators(operators, values, -1);
-
-    if (values.length > 1) {
-        throw new Error(INTERNAL_ERROR);
-    }
+    processOperators(operators, values, END);
+    if (operators.length) throw new Error("Missing right parenthesis");
+    if (!values.length) throw new Error("Empty expression");
+    if (values.length > 1) throw new Error("Internal error, possible bug.");
     return values[0];
 }
 

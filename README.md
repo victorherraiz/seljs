@@ -12,14 +12,16 @@
 
 ## Features
 
-* No side effects: only and expression language
+* No side effects
 * Fast and simple: small memory footprint
 * No dependencies
 * Simplified property access
+* Expression cache
 
 ## Language features
 
 * Arithmetic, relation, equality and boolean opeations
+* Groups
 * Context and property access
 * Literals: Strings and integers
 * String concatenation
@@ -28,12 +30,13 @@
 ## Work in progress
 
 * Unary: not, minus
-* Grouping
 * Functions
 * Global functions
 * Language and operators documentation
 * Floats
 * Array Literals
+* Date literals
+* Datetime literals
 
 ## Examples
 
